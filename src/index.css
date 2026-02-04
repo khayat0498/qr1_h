@@ -407,6 +407,72 @@ select:focus {
   font-size: 12px;
 }
 
+/* ── Share ── */
+
+.share-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.share-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+}
+
+.share-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.share-btn {
+  all: unset;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #f5f5f7;
+  color: #888;
+}
+
+.share-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+}
+
+.share-btn.telegram {
+  color: #2AABEE;
+}
+
+.share-btn.telegram:hover {
+  background: #2AABEE;
+  color: #fff;
+}
+
+.share-btn.whatsapp {
+  color: #25D366;
+}
+
+.share-btn.whatsapp:hover {
+  background: #25D366;
+  color: #fff;
+}
+
+.share-btn.native {
+  color: #6c5ce7;
+}
+
+.share-btn.native:hover {
+  background: #6c5ce7;
+  color: #fff;
+}
+
 /* ── Mobile ── */
 
 @media (max-width: 700px) {

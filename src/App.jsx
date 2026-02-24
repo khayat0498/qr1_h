@@ -5,8 +5,75 @@ import DotPattern from './DotPattern'
 
 const MAX_LENGTH = 4000
 
+function PreviewCard({ data }) {
+  const fields = data.filter((r) => r.key.trim() || r.value.trim())
+  const title = (() => {
+    const f = fields.find((r) => /^(sarlavha|title|nomi|nom)$/i.test(r.key.trim()))
+    return f ? f.value : "Ma'lumotlar"
+  })()
+  const phoneRow = fields.find((r) => /^(telefon|tel|phone|mobil|mob)$/i.test(r.key.trim()))
+
+  // Group adjacent short-value pairs into 2-col rows
+  const groups = []
+  let i = 0
+  while (i < fields.length) {
+    const curr = fields[i]
+    const next = fields[i + 1]
+    if (next && curr.value.length <= 18 && next.value.length <= 18) {
+      groups.push({ type: 'pair', items: [curr, next] })
+      i += 2
+    } else {
+      groups.push({ type: 'single', items: [curr] })
+      i++
+    }
+  }
+
+  return (
+    <div className="pv-page">
+      <div className="pv-wrap">
+        <h1 className="pv-title">{title}</h1>
+        <div className="pv-card">
+          <h2 className="pv-card-title">{title}</h2>
+          <div className="pv-fields">
+            {groups.map((g, gi) =>
+              g.type === 'pair' ? (
+                <div key={gi} className="pv-row-2">
+                  {g.items.map((f, fi) => (
+                    <div key={fi} className="pv-field">
+                      <span className="pv-label">{f.key}</span>
+                      <span className="pv-value">{f.value}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div key={gi} className="pv-field">
+                  <span className="pv-label">{g.items[0].key}</span>
+                  <span className="pv-value">{g.items[0].value}</span>
+                </div>
+              )
+            )}
+          </div>
+          <div className="pv-verified">
+            <strong>&#10003; Tasdiqlangan</strong>
+            <p>Bu ma'lumotlar rasmiy ro'yxatga olingan va tasdiqlangan.</p>
+          </div>
+          {phoneRow && (
+            <a
+              href={`tel:${phoneRow.value.replace(/\s+/g, '')}`}
+              className="pv-phone"
+            >
+              &#128222; {phoneRow.value}
+            </a>
+          )}
+        </div>
+        <p className="pv-footer">&#169; 2025 | Barcha huquqlar himoyalangan</p>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
-  const [text, setText] = useState('')
+  const [rows, setRows] = useState([{ key: '', value: '' }])
   const [mode, setMode] = useState('qr')
   const [size, setSize] = useState(260)
   const [qrUrl, setQrUrl] = useState('')
@@ -14,17 +81,70 @@ export default function App() {
   const [error, setError] = useState('')
   const [showLabel, setShowLabel] = useState(false)
   const [barcodeLabel, setBarcodeLabel] = useState('')
+  const [cardMode, setCardMode] = useState(true)
+  const [viewData, setViewData] = useState(null)
+
+  // Check URL for preview data on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const d = params.get('d')
+    if (d) {
+      try {
+        const decoded = JSON.parse(decodeURIComponent(atob(d)))
+        setViewData(decoded)
+      } catch {}
+    }
+  }, [])
+
+  const text = useMemo(() => {
+    return rows
+      .filter((r) => r.key.trim() || r.value.trim())
+      .map((r) => `${r.key}: ${r.value}`)
+      .join('\n')
+      .slice(0, MAX_LENGTH)
+  }, [rows])
 
   const countText = useMemo(() => {
-    const used = text.length
-    return `${used}/${MAX_LENGTH}`
+    return `${text.length}/${MAX_LENGTH}`
   }, [text])
+
+  const urlQrText = useMemo(() => {
+    const filtered = rows.filter((r) => r.key.trim() || r.value.trim())
+    if (!filtered.length) return ''
+    try {
+      const base = 'https://qr1-h.vercel.app'
+      const encoded = btoa(encodeURIComponent(JSON.stringify(filtered)))
+      return `${base}?d=${encoded}`
+    } catch {
+      return ''
+    }
+  }, [rows])
+
+  const autoResize = (el) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }
+
+  useEffect(() => {
+    document.querySelectorAll('.row-input').forEach(autoResize)
+  }, [rows])
+
+  const updateRow = (index, field, val) => {
+    const next = rows.map((r, i) => (i === index ? { ...r, [field]: val } : r))
+    setRows(next)
+  }
+
+  const addRow = () => setRows((prev) => [...prev, { key: '', value: '' }])
+  const removeRow = (index) => setRows((prev) => prev.filter((_, i) => i !== index))
 
   useEffect(() => {
     let cancelled = false
     setError('')
 
-    if (!text.trim()) {
+    const effectiveText = mode === 'qr' && cardMode ? urlQrText : text
+
+    if (!effectiveText.trim()) {
       setQrUrl('')
       setBarcodeSvg('')
       return
@@ -34,10 +154,10 @@ export default function App() {
     if (nextSize !== size) setSize(nextSize)
 
     if (mode === 'qr') {
-      QRCode.toDataURL(text, {
+      QRCode.toDataURL(effectiveText, {
         width: nextSize,
         margin: 1,
-        errorCorrectionLevel: 'H',
+        errorCorrectionLevel: cardMode ? 'M' : 'H',
         color: {
           dark: '#1d1b1a',
           light: '#ffffff',
@@ -85,7 +205,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [text, mode, size, showLabel, barcodeLabel])
+  }, [text, urlQrText, mode, size, showLabel, barcodeLabel, cardMode])
 
   const isReady = mode === 'qr' ? Boolean(qrUrl) : Boolean(barcodeSvg)
   const downloadUrl = mode === 'qr' ? qrUrl : barcodeSvg
@@ -119,6 +239,11 @@ export default function App() {
     } catch {}
   }
 
+  // Show preview card when URL has ?d= param
+  if (viewData) {
+    return <PreviewCard data={viewData} />
+  }
+
   return (
     <div className="page">
       <DotPattern
@@ -126,7 +251,7 @@ export default function App() {
         height={24}
         cr={1}
         className="dot-pattern"
-        style={{ color: "rgba(0, 0, 0, 0.08)" }}
+        style={{ color: 'rgba(0, 0, 0, 0.08)' }}
       />
 
       <div className="shell">
@@ -173,16 +298,44 @@ export default function App() {
         <section className="grid">
           <div className="card">
             <div className="field-header">
-              <label htmlFor="textInput">Ma'lumot</label>
+              <label>Ma'lumotlar</label>
               <span className="counter">{countText}</span>
             </div>
-            <textarea
-              id="textInput"
-              value={text}
-              onChange={(event) => setText(event.target.value.slice(0, MAX_LENGTH))}
-              placeholder="https://example.com yoki 123456789"
-              maxLength={MAX_LENGTH}
-            />
+
+            <div className="rows-list">
+              {rows.map((row, i) => (
+                <div key={i} className="row-item">
+                  <textarea
+                    className="row-input"
+                    placeholder="F.I.SH"
+                    value={row.key}
+                    rows={1}
+                    onChange={(e) => updateRow(i, 'key', e.target.value)}
+                  />
+                  <textarea
+                    className="row-input"
+                    placeholder="Aliyev Vali"
+                    value={row.value}
+                    rows={1}
+                    onChange={(e) => updateRow(i, 'value', e.target.value)}
+                  />
+                  {rows.length > 1 && (
+                    <button
+                      type="button"
+                      className="row-remove"
+                      onClick={() => removeRow(i)}
+                      title="O'chirish"
+                    >
+                      &#215;
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <button type="button" className="btn-add-row" onClick={addRow}>
+              + Qator qo'shish
+            </button>
 
             <div className="field-header" style={{ marginTop: 18 }}>
               <label htmlFor="size">O'lcham (px)</label>
@@ -196,6 +349,23 @@ export default function App() {
               onChange={(event) => setSize(Number(event.target.value))}
             />
 
+            {mode === 'qr' && (
+              <div className="card-mode-row">
+                <div className="card-mode-info">
+                  <span className="card-mode-label">Karta sifatida ko'rsatish</span>
+                  <span className="card-mode-hint">Scan qilinganda chiroyli karta ochiladi</span>
+                </div>
+                <button
+                  type="button"
+                  className={`toggle ${cardMode ? 'on' : ''}`}
+                  onClick={() => setCardMode(!cardMode)}
+                  aria-pressed={cardMode}
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+            )}
+
             <div className="actions">
               <button type="button" className="btn-primary" onClick={handleDownload} disabled={!isReady}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -205,7 +375,7 @@ export default function App() {
                 </svg>
                 Yuklab olish
               </button>
-              <button type="button" className="btn-ghost" onClick={() => setText('')}>
+              <button type="button" className="btn-ghost" onClick={() => setRows([{ key: '', value: '' }])}>
                 Tozalash
               </button>
             </div>

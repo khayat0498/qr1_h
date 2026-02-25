@@ -112,7 +112,7 @@ export default function App() {
     const filtered = rows.filter((r) => r.key.trim() || r.value.trim())
     if (!filtered.length) return ''
     try {
-      const base = 'https://qr1-h.vercel.app'
+      const base = 'https://www.imhtrade.uz'
       const encoded = btoa(encodeURIComponent(JSON.stringify(filtered)))
       return `${base}?d=${encoded}`
     } catch {
